@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#150e09">
+<title>Remote Pad</title>
+<style>
+  :root{
+    --bg:#150e09;
+    --pad-bg-1:#221610;
+    --pad-bg-2:#0c0806;
+    --key:#3d2c22;
+    --key-active:#573e2f;
+    --key-special:#6b4c37;
+    --key-special-active:#84613f;
+    --util-bg:#0a0a0a;
+    --util-key:#3a3a3a;
+    --util-key-active:#4f4f4f;
+    --ink:#f2e6d8;
+    --ink-dim:#c9b8a4;
+    --accent:#e0925a;
+    --ok:#7fbf7f;
+    --bad:#c96a5a;
+    --gap:6px;
+    --radius:10px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+  html,body{height:100%; margin:0; overscroll-behavior:none; touch-action:none;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;
+    flex-direction:column;
+    height:100dvh;
+    width:100vw;
+    overflow:hidden;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #app{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    gap:var(--gap);
+    padding:var(--gap);
+  }
+  @media (orientation: landscape){
+    #app{ flex-direction:row; }
+  }
+
+  /* ---------- status bar ---------- */
+  #statusbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:6px 10px;
+    font-size:12px;
+    color:var(--ink-dim);
+    flex:0 0 auto;
+  }
+  #statusbar .dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--bad); margin-right:6px; vertical-align:middle;
+  }
+  #statusbar.connected .dot{ background:var(--ok); }
+  #gear{
+    background:none; border:none; color:var(--ink-dim); font-size:16px;
+    padding:4px 8px; cursor:pointer;
+  }
+
+  /* ---------- touchpad pane ---------- */
+  #touchpad-pane{
+    flex:1 1 45%;
+    display:flex;
+    flex-direction:column;
+    min-height:120px;
+    min-width:0;
+  }
+  #touchpad{
+    flex:1;
+    border-radius:var(--radius);
+    background:radial-gradient(circle at 30% 20%, var(--pad-bg-1), var(--pad-bg-2) 75%);
+    border:1px solid #2a1d15;
+    position:relative;
+    touch-action:none;
+  }
+  #touchpad .flash{
+    position:absolute; width:34px; height:34px; margin:-17px 0 0 -17px;
+    border-radius:50%; background:rgba(224,146,90,0.35);
+    pointer-events:none; opacity:0; transition:opacity .25s ease;
+  }
+  #clickbar{
+    display:flex; gap:var(--gap); margin-top:var(--gap); flex:0 0 auto;
+  }
+  #clickbar button{
+    flex:1; padding:12px 0; border:none; border-radius:var(--radius);
+    background:var(--key-special); color:var(--ink); font-size:14px;
+  }
+  #clickbar button:active{ background:var(--key-special-active); }
+
+  /* ---------- keyboard pane ---------- */
+  #keyboard-pane{
+    flex:1 1 55%;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-height:0;
+    min-width:0;
+  }
+  .util-row{
+    display:flex; gap:4px; flex:0 0 auto;
+    background:var(--util-bg); border-radius:8px; padding:4px;
+  }
+  .util-row .key{
+    background:var(--util-key); color:#eee; flex:1; font-size:12px; padding:8px 0;
+    border:none; border-radius:6px;
+  }
+  .util-row .key:active{ background:var(--util-key-active); }
+  .util-row .key.wide{ flex:1.4; }
+  .util-row .key.mod.on{ background:var(--accent); color:#241408; }
+
+  #qwerty{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-height:0;
+  }
+  .krow{ display:flex; gap:4px; flex:1; min-height:0; }
+  .key{
+    flex:1;
+    background:var(--key);
+    color:var(--ink);
+    border:none;
+    border-radius:8px;
+    font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    min-width:0;
+  }
+  .key:active{ background:var(--key-active); }
+  .key.special{ background:var(--key-special); }
+  .key.special:active{ background:var(--key-special-active); }
+  .key.spacer-key{ flex:0.55; background:transparent; }
+  .key.wide2{ flex:1.7; }
+  .key.space{ flex:6; }
+  .key.narrow{ flex:0.8; }
+  .krow.offset{ padding-left:1.5%; padding-right:1.5%; }
+
+  /* ---------- settings panel ---------- */
+  #settings{
+    position:fixed; inset:0; background:rgba(10,7,4,0.92);
+    display:none; flex-direction:column; padding:20px; gap:12px;
+    z-index:20; overflow-y:auto;
+  }
+  #settings.open{ display:flex; }
+  #settings h2{ margin:0 0 4px; font-size:18px; }
+  #settings label{ font-size:13px; color:var(--ink-dim); display:block; margin-bottom:4px; }
+  #settings input[type=text]{
+    width:100%; padding:10px; border-radius:8px; border:1px solid #4a3626;
+    background:#1c140d; color:var(--ink); font-size:14px;
+  }
+  #settings input[type=range]{ width:100%; }
+  #settings .row{ display:flex; gap:10px; }
+  #settings .row button{
+    flex:1; padding:12px; border-radius:8px; border:none; font-size:14px;
+  }
+  #btn-connect{ background:var(--accent); color:#241408; }
+  #btn-close{ background:var(--key); color:var(--ink); }
+
+  #letters{ display:flex; flex-direction:column; flex:1; min-height:0; gap:4px; }
+  #letters.hidden-layer{ display:none; }
+  #symbols{ display:none; flex-direction:column; flex:1; min-height:0; gap:4px; }
+  #symbols.on{ display:flex; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="touchpad-pane">
+    <div id="statusbar">
+      <span><span class="dot"></span><span id="status-text">Not connected</span></span>
+      <button id="gear" aria-label="Settings">⚙</button>
+    </div>
+    <div id="touchpad"><div class="flash" id="flash"></div></div>
+    <div id="clickbar">
+      <button data-action="left">Left</button>
+      <button data-action="double">Double</button>
+      <button data-action="right">Right</button>
+    </div>
+  </div>
+
+  <div id="keyboard-pane">
+    <div class="util-row">
+      <button class="key" data-key="Escape">Esc</button>
+      <button class="key wide mod" data-key="Control">Ctrl</button>
+      <button class="key wide mod" data-key="Alt">Alt</button>
+      <button class="key" data-key="ArrowLeft">←</button>
+      <button class="key" data-key="ArrowUp">↑</button>
+      <button class="key" data-key="ArrowDown">↓</button>
+      <button class="key" data-key="ArrowRight">→</button>
+    </div>
+
+    <div id="qwerty">
+      <div id="letters">
+        <div class="krow" id="row-num"></div>
+        <div class="krow" id="row-q"></div>
+        <div class="krow offset" id="row-a"></div>
+        <div class="krow" id="row-z"></div>
+        <div class="krow" id="row-bottom"></div>
+      </div>
+      <div id="symbols">
+        <div class="krow" id="sym-1"></div>
+        <div class="krow" id="sym-2"></div>
+        <div class="krow offset" id="sym-3"></div>
+        <div class="krow" id="sym-bottom"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="settings">
+  <h2>Connection</h2>
+  <div>
+    <label for="ws-url">PC server address</label>
+    <input id="ws-url" type="text" placeholder="ws://192.168.1.10:5000/ws">
+  </div>
+  <div>
+    <label for="sens">Pointer sensitivity: <span id="sens-val">2.0</span></label>
+    <input id="sens" type="range" min="0.5" max="6" step="0.1" value="2.0">
+  </div>
+  <div>
+    <label for="scroll-speed">Scroll speed: <span id="scroll-val">1.0</span></label>
+    <input id="scroll-speed" type="range" min="0.3" max="3" step="0.1" value="1.0">
+  </div>
+  <div class="row">
+    <button id="btn-connect">Connect</button>
+    <button id="btn-close">Close</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------------- key layout data ----------------
+  var rowNum   = "1 2 3 4 5 6 7 8 9 0".split(" ");
+  var rowQ     = "q w e r t y u i o p".split(" ");
+  var rowA     = "a s d f g h j k l".split(" ");
+  var rowZmid  = "z x c v b n m".split(" ");
+  var symTop   = "! @ # $ % ^ & * ( )".split(" ");
+  var symMid   = "- _ = + [ ] { }".split(" ");
+  var symLow   = "; : ' \" / \\ ~".split(" ");
+
+  function el(tag, cls, attrs){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(attrs) for(var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function makeKey(label, keyVal, extraCls){
+    var b = el('button', 'key' + (extraCls ? ' '+extraCls : ''), {'data-key': keyVal});
+    b.textContent = label;
+    return b;
+  }
+  function fillRow(rowEl, arr){
+    rowEl.innerHTML = '';
+    arr.forEach(function(ch){ rowEl.appendChild(makeKey(ch, ch)); });
+  }
+
+  fillRow(document.getElementById('row-num'), rowNum);
+  fillRow(document.getElementById('row-q'), rowQ);
+  fillRow(document.getElementById('row-a'), rowA);
+
+  // row-z: Shift, z..m, Backspace
+  var rowZ = document.getElementById('row-z');
+  rowZ.appendChild(makeKey('⇧', 'Shift', 'special wide2'));
+  rowZmid.forEach(function(ch){ rowZ.appendChild(makeKey(ch, ch)); });
+  rowZ.appendChild(makeKey('⌫', 'Backspace', 'special wide2'));
+
+  // bottom row: ?123, comma, space, dot, enter
+  var rowB = document.getElementById('row-bottom');
+  rowB.appendChild(makeKey('?123', 'SYM_TOGGLE', 'special narrow'));
+  rowB.appendChild(makeKey(',', ',', 'narrow'));
+  rowB.appendChild(makeKey('', ' ', 'space'));
+  rowB.appendChild(makeKey('.', '.', 'narrow'));
+  rowB.appendChild(makeKey('↵', 'Enter', 'special narrow'));
+
+  // symbol layer
+  fillRow(document.getElementById('sym-1'), symTop);
+  fillRow(document.getElementById('sym-2'), symMid);
+  fillRow(document.getElementById('sym-3'), symLow);
+  var symB = document.getElementById('sym-bottom');
+  symB.appendChild(makeKey('ABC', 'ABC_TOGGLE', 'special narrow'));
+  symB.appendChild(makeKey(',', ',', 'narrow'));
+  symB.appendChild(makeKey('', ' ', 'space'));
+  symB.appendChild(makeKey('.', '.', 'narrow'));
+  symB.appendChild(makeKey('↵', 'Enter', 'special narrow'));
+
+  // ---------------- settings / connection state ----------------
+  var settings = {
+    url: localStorage.getItem('rp_url') || '',
+    sens: parseFloat(localStorage.getItem('rp_sens') || '2.0'),
+    scroll: parseFloat(localStorage.getItem('rp_scroll') || '1.0')
+  };
+  document.getElementById('ws-url').value = settings.url;
+  document.getElementById('sens').value = settings.sens;
+  document.getElementById('sens-val').textContent = settings.sens.toFixed(1);
+  document.getElementById('scroll-speed').value = settings.scroll;
+  document.getElementById('scroll-val').textContent = settings.scroll.toFixed(1);
+
+  var ws = null;
+  var statusEl = document.getElementById('statusbar');
+  var statusText = document.getElementById('status-text');
+
+  function setStatus(text, connected){
+    statusText.textContent = text;
+    statusEl.classList.toggle('connected', !!connected);
+  }
+
+  function connect(){
+    if(!settings.url) { setStatus('No address set'); return; }
+    try{
+      ws = new WebSocket(settings.url);
+    }catch(e){ setStatus('Bad address'); return; }
+    setStatus('Connecting…');
+    ws.onopen = function(){ setStatus('Connected', true); };
+    ws.onclose = function(){ setStatus('Disconnected'); };
+    ws.onerror = function(){ setStatus('Connection error'); };
+  }
+
+  function send(obj){
+    if(ws && ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify(obj));
+    }
+  }
+
+  // ---------------- settings panel wiring ----------------
+  var panel = document.getElementById('settings');
+  document.getElementById('gear').addEventListener('click', function(){ panel.classList.add('open'); });
+  document.getElementById('btn-close').addEventListener('click', function(){ panel.classList.remove('open'); });
+  document.getElementById('btn-connect').addEventListener('click', function(){
+    settings.url = document.getElementById('ws-url').value.trim();
+    localStorage.setItem('rp_url', settings.url);
+    panel.classList.remove('open');
+    connect();
+  });
+  document.getElementById('sens').addEventListener('input', function(e){
+    settings.sens = parseFloat(e.target.value);
+    document.getElementById('sens-val').textContent = settings.sens.toFixed(1);
+    localStorage.setItem('rp_sens', settings.sens);
+  });
+  document.getElementById('scroll-speed').addEventListener('input', function(e){
+    settings.scroll = parseFloat(e.target.value);
+    document.getElementById('scroll-val').textContent = settings.scroll.toFixed(1);
+    localStorage.setItem('rp_scroll', settings.scroll);
+  });
+
+  if(settings.url) connect();
+
+  // ---------------- touchpad gesture handling ----------------
+  var pad = document.getElementById('touchpad');
+  var flash = document.getElementById('flash');
+  var touchState = {
+    fingers: 0,
+    lastX:0, lastY:0,
+    startTime:0,
+    moved:false,
+    lastTapTime:0,
+    lastTapCount:0
+  };
+
+  function showFlash(x, y){
+    var r = pad.getBoundingClientRect();
+    flash.style.left = (x - r.left) + 'px';
+    flash.style.top = (y - r.top) + 'px';
+    flash.style.opacity = '1';
+    setTimeout(function(){ flash.style.opacity = '0'; }, 150);
+  }
+
+  pad.addEventListener('touchstart', function(e){
+    touchState.fingers = e.touches.length;
+    touchState.startTime = Date.now();
+    touchState.moved = false;
+    var t = e.touches[0];
+    touchState.lastX = t.clientX;
+    touchState.lastY = t.clientY;
+  }, {passive:true});
+
+  pad.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    var t = e.touches[0];
+    if(e.touches.length >= 2){
+      var t2 = e.touches[1];
+      var mx = (t.clientX + t2.clientX)/2, my = (t.clientY + t2.clientY)/2;
+      var dx = mx - touchState.lastX, dy = my - touchState.lastY;
+      if(Math.abs(dx) > 1 || Math.abs(dy) > 1){
+        send({type:'scroll', dx: dx * settings.scroll, dy: dy * settings.scroll});
+        touchState.moved = true;
+        touchState.lastX = mx; touchState.lastY = my;
+      }
+      return;
+    }
+    var SENS_BASE = 1.8; // baseline boost, independent of the slider
+    var dx = (t.clientX - touchState.lastX) * settings.sens * SENS_BASE;
+    var dy = (t.clientY - touchState.lastY) * settings.sens * SENS_BASE;
+    if(Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5){
+      send({type:'move', dx:dx, dy:dy});
+      touchState.moved = true;
+    }
+    touchState.lastX = t.clientX;
+    touchState.lastY = t.clientY;
+  }, {passive:false});
+
+  pad.addEventListener('touchend', function(e){
+    var elapsed = Date.now() - touchState.startTime;
+    if(!touchState.moved && elapsed < 300){
+      if(touchState.fingers >= 2){
+        send({type:'click', button:'right'});
+        showFlash(touchState.lastX, touchState.lastY);
+      } else {
+        var now = Date.now();
+        if(now - touchState.lastTapTime < 300){
+          send({type:'click', button:'left', double:true});
+          touchState.lastTapTime = 0;
+        } else {
+          send({type:'click', button:'left'});
+          touchState.lastTapTime = now;
+        }
+        showFlash(touchState.lastX, touchState.lastY);
+      }
+    }
+    touchState.fingers = 0;
+  }, {passive:true});
+
+  document.getElementById('clickbar').addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    var action = btn.getAttribute('data-action');
+    if(action === 'left') send({type:'click', button:'left'});
+    else if(action === 'double') send({type:'click', button:'left', double:true});
+    else if(action === 'right') send({type:'click', button:'right'});
+  });
+
+  // ---------------- keyboard handling ----------------
+  var activeMods = {};
+
+  function handleKeyTap(keyEl){
+    var key = keyEl.getAttribute('data-key');
+    if(key === 'SYM_TOGGLE'){
+      document.getElementById('letters').classList.add('hidden-layer');
+      document.getElementById('symbols').classList.add('on');
+      return;
+    }
+    if(key === 'ABC_TOGGLE'){
+      document.getElementById('letters').classList.remove('hidden-layer');
+      document.getElementById('symbols').classList.remove('on');
+      return;
+    }
+    if(key === 'Control' || key === 'Alt' || key === 'Shift'){
+      var isOn = keyEl.classList.toggle('on');
+      activeMods[key] = isOn;
+      send({type: isOn ? 'key_down' : 'key_up', key: key});
+      return;
+    }
+    send({type:'key', key:key});
+  }
+
+  document.getElementById('keyboard-pane').addEventListener('click', function(e){
+    var keyEl = e.target.closest('.key');
+    if(!keyEl) return;
+    handleKeyTap(keyEl);
+  });
+
+})();
+</script>
+</body>
+</html>
