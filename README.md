@@ -475,8 +475,7 @@ Possible future improvements include:
 
 **Raju Prajapat**
 
-Electronics & Communication Engineering Student
-Interested in Embedded Systems, VLSI, IoT and AI.
+Electronics & Communication Engineering Student.
 
 **Connect**
 
