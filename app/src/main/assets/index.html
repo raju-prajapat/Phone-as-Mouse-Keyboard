@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#150e09">
+<title>Remote Pad</title>
+<style>
+:root{
+  --bg:#150e09; --pad-bg-1:#221610; --pad-bg-2:#0c0806;
+  --key:#3d2c22; --key-active:#573e2f;
+  --key-special:#6b4c37; --key-special-active:#84613f;
+  --util-bg:#0a0a0a; --util-key:#3a3a3a; --util-key-active:#4f4f4f;
+  --ink:#f2e6d8; --ink-dim:#c9b8a4; --accent:#e0925a;
+  --ok:#7fbf7f; --bad:#c96a5a; --gap:5px; --radius:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{height:100%;margin:0;overscroll-behavior:none;touch-action:none;}
+body{
+  background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  height:100dvh;width:100vw;overflow:hidden;
+}
+#app{height:100%;display:flex;flex-direction:column;gap:var(--gap);padding:var(--gap);}
+#touchpad-pane,#keyboard-pane{flex:1 1 50%;min-width:0;min-height:0;display:flex;flex-direction:column;}
+#touchpad-pane{gap:var(--gap);}
+#keyboard-pane{gap:4px;}
+#statusbar{display:flex;align-items:center;justify-content:space-between;padding:3px 8px;font-size:14px;color:var(--ink-dim);flex:0 0 auto;}
+#statusbar .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:7px;}
+#statusbar.connected .dot{background:var(--ok);}
+#gear{background:none;border:none;color:var(--ink-dim);font-size:22px;padding:3px 7px;}
+#touchpad{flex:1;min-height:0;border-radius:var(--radius);background:radial-gradient(circle at 30% 20%,var(--pad-bg-1),var(--pad-bg-2) 75%);border:1px solid #2a1d15;position:relative;touch-action:none;}
+#touchpad .flash{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(224,146,90,.35);pointer-events:none;opacity:0;transition:opacity .1s ease;}
+#clickbar{display:flex;gap:var(--gap);flex:0 0 auto;}
+#clickbar button{flex:1;padding:8px 0;border:none;border-radius:var(--radius);background:var(--key-special);color:var(--ink);font-size:15px;}
+#clickbar button:active{background:var(--key-special-active);}
+.util-row{display:flex;gap:3px;flex:0 0 auto;background:var(--util-bg);border-radius:8px;padding:3px;}
+.util-row .key{background:var(--util-key);color:#eee;flex:1;font-size:11px;padding:7px 0;border:none;border-radius:6px;min-width:0;}
+.util-row .key:active,.util-row .key.on{background:var(--util-key-active);}
+.util-row .key.wide{flex:1.05;}
+#qwerty{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;}
+.krow{display:flex;gap:3px;flex:1;min-height:0;}
+.key{flex:1;background:var(--key);color:var(--ink);border:none;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;min-width:0;}
+.key:active{background:var(--key-active);}
+.key.special{background:var(--key-special);}
+.key.special:active{background:var(--key-special-active);}
+.key.wide2{flex:1.5}.key.space{flex:5.6}.key.narrow{flex:.78}
+.krow.offset{padding-left:1.5%;padding-right:1.5%;}
+#letters,#symbols,#emojis{display:flex;flex-direction:column;flex:1;min-height:0;gap:3px;}
+#symbols,#emojis{display:none;}
+#symbols.on,#emojis.on{display:flex;}
+#letters.hidden-layer{display:none;}
+#emojis{overflow:hidden;}
+.emoji-toolbar{display:flex;flex:0 0 auto;margin-bottom:2px;}
+#emoji-back{width:100%;min-height:30px;font-size:12px;padding:6px 8px;}
+#emoji-cats{display:flex;gap:3px;flex:0 0 auto;overflow-x:auto;padding:2px 1px;scrollbar-width:none;}
+#emoji-cats::-webkit-scrollbar{display:none;}
+.emoji-cat{flex:0 0 auto;width:34px;height:30px;border:none;border-radius:7px;background:var(--util-key);color:#fff;font-size:16px;}
+.emoji-cat.on{background:var(--accent);color:#241408;}
+#emoji-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;padding:1px;touch-action:pan-y;}
+.emoji-key{min-height:34px;border:none;border-radius:7px;background:var(--key);color:var(--ink);font-size:20px;display:flex;align-items:center;justify-content:center;}
+.emoji-key:active{background:var(--key-active);}
+#settings{position:fixed;inset:0;background:rgba(10,7,4,.96);display:none;flex-direction:column;padding:18px;gap:11px;z-index:20;overflow-y:auto;}
+#settings.open{display:flex;}
+#settings h2{margin:0 0 2px;font-size:22px;}
+#settings h3{margin:3px 0 0;font-size:16px;}
+#settings label{font-size:13px;color:var(--ink-dim);display:block;margin-bottom:4px;}
+#settings input[type=text]{width:100%;padding:11px;border-radius:8px;border:1px solid #4a3626;background:#1c140d;color:var(--ink);font-size:16px;}
+#settings input[type=range]{width:100%;}
+#settings .row{display:flex;gap:9px;}
+#settings .row button{flex:1;padding:11px;border-radius:8px;border:none;font-size:15px;}
+#btn-connect{background:var(--accent);color:#241408}.secondary{background:var(--key);color:var(--ink);}
+.info{color:var(--ink-dim);font-size:13px;line-height:1.45;}
+.contact button,.howto button{width:100%;text-align:left;background:#21160f;color:var(--ink);border:1px solid #3e2b1f;border-radius:8px;padding:10px 12px;margin-top:6px;font-size:14px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="touchpad-pane">
+    <div id="statusbar"><span><span class="dot"></span><span id="status-text">Not connected</span></span><button id="gear" aria-label="Settings">⚙</button></div>
+    <div id="touchpad"><div class="flash" id="flash"></div></div>
+    <div id="clickbar"><button data-action="left">Left</button><button data-action="double">Double</button><button data-action="right">Right</button></div>
+  </div>
+
+  <div id="keyboard-pane">
+    <div class="util-row">
+      <button class="key" data-key="Escape">Esc</button>
+      <button class="key wide mod" data-key="Control">Ctrl</button>
+      <button class="key wide mod" data-key="Alt">Alt</button>
+      <button class="key" data-key="Tab">Tab</button>
+      <button class="key" data-key="ArrowLeft">←</button>
+      <button class="key" data-key="ArrowUp">↑</button>
+      <button class="key" data-key="ArrowDown">↓</button>
+      <button class="key" data-key="ArrowRight">→</button>
+    </div>
+
+    <div id="qwerty">
+      <div id="letters">
+        <div class="krow" id="row-num"></div>
+        <div class="krow" id="row-q"></div>
+        <div class="krow offset" id="row-a"></div>
+        <div class="krow" id="row-z"></div>
+        <div class="krow" id="row-bottom"></div>
+      </div>
+
+      <div id="symbols">
+        <div class="krow" id="sym-1"></div>
+        <div class="krow" id="sym-2"></div>
+        <div class="krow offset" id="sym-3"></div>
+        <div class="krow" id="sym-bottom"></div>
+      </div>
+
+      <div id="emojis">
+        <div class="emoji-toolbar">
+          <button id="emoji-back" class="key special">⌨ Keyboard</button>
+        </div>
+        <div id="emoji-cats"></div>
+        <div id="emoji-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="settings">
+  <h2>Settings</h2>
+
+  <div>
+    <label for="ws-url">PC IP address</label>
+    <input id="ws-url" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 10.165.130.69">
+    <div class="info">Enter only the PC IP. Port 5000 and /ws are added automatically.</div>
+  </div>
+
+  <div>
+    <label for="sens">Pointer sensitivity: <span id="sens-val">2.0</span></label>
+    <input id="sens" type="range" min="1.0" max="5.0" step="0.1" value="2.0">
+  </div>
+
+  <div>
+    <label for="scroll-speed">Scroll speed: <span id="scroll-val">1.0</span></label>
+    <input id="scroll-speed" type="range" min="0.3" max="3" step="0.1" value="1.0">
+  </div>
+
+  <div class="row">
+    <button id="btn-connect">Connect</button>
+    <button id="btn-close" class="secondary">Close</button>
+  </div>
+
+  <div class="contact">
+    <h3>Connect with Developer</h3>
+    <button id="github">🐙 GitHub</button>
+    <button id="linkedin">💼 LinkedIn</button>
+    <button id="email">✉ Email</button>
+  </div>
+
+  <div class="howto">
+    <h3>How to Use</h3>
+    <div class="info" style="margin-top:5px">
+      1. Start <b>server.py</b> on the PC.<br>
+      2. Keep phone and PC on the same Wi‑Fi/hotspot network.<br>
+      3. Run <b>ipconfig</b> on Windows and find the Wi‑Fi IPv4 address.<br>
+      4. Enter only that IP here and tap Connect.<br>
+      5. One finger = move, single tap = left click, double tap = double click.<br>
+      6. Two-finger tap = right click, two-finger swipe = scroll.<br>
+      7. Esc/Ctrl/Alt/Tab and arrows are in the top keyboard row.<br>
+      8. Hold Backspace to continuously delete. Shift changes the visible letters to capitals.
+    </div>
+  </div>
+</div>
+
+<script src="emoji-data.js"></script>
+<script>
+(function(){
+  var rowNum="1 2 3 4 5 6 7 8 9 0".split(" ");
+  var rowQ="q w e r t y u i o p".split(" ");
+  var rowA="a s d f g h j k l".split(" ");
+  var rowZmid="z x c v b n m".split(" ");
+  var symTop="! @ # $ % ^ & * ( )".split(" ");
+  var symMid="- _ = + [ ] { }".split(" ");
+  var symLow = "; : ' \" / \\ ~".split(" ");
+
+  function el(tag,cls,attrs){
+    var e=document.createElement(tag); if(cls)e.className=cls;
+    if(attrs)for(var k in attrs)e.setAttribute(k,attrs[k]); return e;
+  }
+  function makeKey(label,keyVal,cls){
+    var b=el("button","key"+(cls?" "+cls:""),{"data-key":keyVal});
+    b.textContent=label; return b;
+  }
+  function fillRow(rowEl,arr){rowEl.innerHTML="";arr.forEach(function(ch){rowEl.appendChild(makeKey(ch,ch));});}
+
+  fillRow(document.getElementById("row-num"),rowNum);
+  fillRow(document.getElementById("row-q"),rowQ);
+  fillRow(document.getElementById("row-a"),rowA);
+
+  var rz=document.getElementById("row-z");
+  rz.appendChild(makeKey("⇧","Shift","special wide2"));
+  rowZmid.forEach(function(ch){rz.appendChild(makeKey(ch,ch));});
+  rz.appendChild(makeKey("⌫","Backspace","special wide2"));
+
+  var rb=document.getElementById("row-bottom");
+  rb.appendChild(makeKey("?123","SYM_TOGGLE","special narrow"));
+  rb.appendChild(makeKey("😀","EMOJI_TOGGLE","special narrow"));
+  rb.appendChild(makeKey(",",",","narrow"));
+  rb.appendChild(makeKey(""," ","space"));
+  rb.appendChild(makeKey(".",".","narrow"));
+  rb.appendChild(makeKey("↵","Enter","special narrow"));
+
+  fillRow(document.getElementById("sym-1"),symTop);
+  fillRow(document.getElementById("sym-2"),symMid);
+  fillRow(document.getElementById("sym-3"),symLow);
+  var sb=document.getElementById("sym-bottom");
+  sb.appendChild(makeKey("ABC","ABC_TOGGLE","special narrow"));
+  sb.appendChild(makeKey("😀","EMOJI_TOGGLE","special narrow"));
+  sb.appendChild(makeKey(",",",","narrow"));
+  sb.appendChild(makeKey(""," ","space"));
+  sb.appendChild(makeKey(".",".","narrow"));
+  sb.appendChild(makeKey("↵","Enter","special narrow"));
+
+
+  var savedSens=parseFloat(localStorage.getItem("rp_sens")||"2.0");
+  if(!isFinite(savedSens))savedSens=2.0;
+  var settings={
+    ip:localStorage.getItem("rp_ip")||"",
+    url:localStorage.getItem("rp_url")||"",
+    sens:Math.max(1.0,savedSens),
+    scroll:parseFloat(localStorage.getItem("rp_scroll")||"1.0")
+  };
+  var urlInput=document.getElementById("ws-url");
+  var sensInput=document.getElementById("sens");
+  var scrollInput=document.getElementById("scroll-speed");
+  urlInput.value=settings.ip || "";
+  sensInput.value=settings.sens;
+  scrollInput.value=settings.scroll;
+  document.getElementById("sens-val").textContent=settings.sens.toFixed(1);
+  document.getElementById("scroll-val").textContent=settings.scroll.toFixed(1);
+
+  function normalizeAddress(value){
+    var v=(value||"").trim();
+    v=v.replace(/^wss?:\/\//i,"");
+    v=v.replace(/\/ws\/?$/i,"");
+    v=v.replace(/:5000$/i,"");
+    return v;
+  }
+  function buildUrl(ip){return "ws://"+normalizeAddress(ip)+":5000/ws";}
+
+  var ws=null,statusEl=document.getElementById("statusbar"),statusText=document.getElementById("status-text");
+  function setStatus(t,c){statusText.textContent=t;statusEl.classList.toggle("connected",!!c);}
+  function connect(){
+    var ip=normalizeAddress(urlInput.value);
+    if(!ip){setStatus("Enter PC IP");return;}
+    if(ws){try{ws.close();}catch(e){}}
+    settings.ip=ip;settings.url=buildUrl(ip);
+    localStorage.setItem("rp_ip",ip);localStorage.setItem("rp_url",settings.url);
+    try{ws=new WebSocket(settings.url);}catch(e){setStatus("Bad address");return;}
+    setStatus("Connecting…");
+    ws.onopen=function(){setStatus("Connected",true);};
+    ws.onclose=function(){setStatus("Disconnected");};
+    ws.onerror=function(){setStatus("Connection error");};
+  }
+  function send(obj){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(obj));}
+
+  document.getElementById("gear").addEventListener("click",function(){document.getElementById("settings").classList.add("open");});
+  document.getElementById("btn-close").addEventListener("click",function(){document.getElementById("settings").classList.remove("open");});
+  document.getElementById("btn-connect").addEventListener("click",function(){document.getElementById("settings").classList.remove("open");connect();});
+  document.getElementById("sens").addEventListener("input",function(e){settings.sens=parseFloat(e.target.value);document.getElementById("sens-val").textContent=settings.sens.toFixed(1);localStorage.setItem("rp_sens",settings.sens);});
+  document.getElementById("scroll-speed").addEventListener("input",function(e){settings.scroll=parseFloat(e.target.value);document.getElementById("scroll-val").textContent=settings.scroll.toFixed(1);localStorage.setItem("rp_scroll",settings.scroll);});
+  document.getElementById("github").addEventListener("click",function(){location.href="https://github.com/raju-prajapat";});
+  document.getElementById("linkedin").addEventListener("click",function(){location.href="https://www.linkedin.com/in/raju-prajapat-839b49394?fromQR=1";});
+  document.getElementById("email").addEventListener("click",function(){location.href="mailto:raju.prajapat8529@gmail.com";});
+
+  if(settings.ip) connect();
+
+  var pad=document.getElementById("touchpad"),flash=document.getElementById("flash");
+  var touchState={fingers:0,lastX:0,lastY:0,startTime:0,moved:false,lastTapTime:0,pDX:0,pDY:0,pSX:0,pSY:0,raf:false};
+
+  function flush(){
+    touchState.raf=false;
+    var dx=touchState.pDX,dy=touchState.pDY,sx=touchState.pSX,sy=touchState.pSY;
+    touchState.pDX=touchState.pDY=touchState.pSX=touchState.pSY=0;
+    if(dx||dy)send({type:"move",dx:dx,dy:dy});
+    if(sx||sy)send({type:"scroll",dx:sx,dy:sy});
+  }
+  function queue(dx,dy,isScroll){
+    if(isScroll){touchState.pSX+=dx;touchState.pSY+=dy;}
+    else{touchState.pDX+=dx;touchState.pDY+=dy;}
+    if(!touchState.raf){touchState.raf=true;requestAnimationFrame(flush);}
+  }
+  function showFlash(x,y){
+    var r=pad.getBoundingClientRect();flash.style.left=(x-r.left)+"px";flash.style.top=(y-r.top)+"px";flash.style.opacity="1";
+    setTimeout(function(){flash.style.opacity="0";},90);
+  }
+
+  pad.addEventListener("touchstart",function(e){
+    touchState.fingers=e.touches.length;touchState.startTime=performance.now();touchState.moved=false;
+    var t=e.touches[0];touchState.lastX=t.clientX;touchState.lastY=t.clientY;
+  },{passive:true});
+
+  pad.addEventListener("touchmove",function(e){
+    e.preventDefault();var t=e.touches[0];
+    if(e.touches.length>=2){
+      var t2=e.touches[1],mx=(t.clientX+t2.clientX)/2,my=(t.clientY+t2.clientY)/2;
+      var dx2=mx-touchState.lastX,dy2=my-touchState.lastY;
+      if(Math.abs(dx2)>0.4||Math.abs(dy2)>0.4){queue(dx2*settings.scroll,dy2*settings.scroll,true);touchState.moved=true;touchState.lastX=mx;touchState.lastY=my;}
+      return;
+    }
+    var dx=(t.clientX-touchState.lastX)*settings.sens*2.15;
+    var dy=(t.clientY-touchState.lastY)*settings.sens*2.15;
+    if(Math.abs(dx)>0.1||Math.abs(dy)>0.1){queue(dx,dy,false);touchState.moved=true;}
+    touchState.lastX=t.clientX;touchState.lastY=t.clientY;
+  },{passive:false});
+
+  pad.addEventListener("touchend",function(){
+    var elapsed=performance.now()-touchState.startTime;
+    if(!touchState.moved&&elapsed<300){
+      if(touchState.fingers>=2){send({type:"click",button:"right"});showFlash(touchState.lastX,touchState.lastY);}
+      else{
+        var now=performance.now();
+        if(now-touchState.lastTapTime<300){send({type:"click",button:"left",double:true});touchState.lastTapTime=0;}
+        else{send({type:"click",button:"left"});touchState.lastTapTime=now;}
+        showFlash(touchState.lastX,touchState.lastY);
+      }
+    }
+    touchState.fingers=0;
+  },{passive:true});
+
+  document.getElementById("clickbar").addEventListener("pointerdown",function(e){
+    var b=e.target.closest("button");if(!b)return;e.preventDefault();
+    var a=b.getAttribute("data-action");if(a==="left")send({type:"click",button:"left"});else if(a==="double")send({type:"click",button:"left",double:true});else send({type:"click",button:"right"});
+  });
+
+  var shiftOn=false,backspaceTimer=null,backspaceDelay=null;
+  function refreshShiftLabels(){
+    document.querySelectorAll("#row-q .key,#row-a .key,#row-z .key").forEach(function(k){
+      var v=k.getAttribute("data-key");
+      if(v&&v.length===1&&/[a-z]/i.test(v)&&v.toLowerCase()!==v.toUpperCase())k.textContent=shiftOn?v.toUpperCase():v.toLowerCase();
+    });
+    var sh=document.querySelector('[data-key="Shift"]');if(sh)sh.classList.toggle("on",shiftOn);
+  }
+  function startBackspace(){
+    stopBackspace();
+    send({type:"key",key:"Backspace"});
+    backspaceDelay=setTimeout(function(){
+      backspaceTimer=setInterval(function(){send({type:"key",key:"Backspace"});},55);
+    },280);
+  }
+  function stopBackspace(){
+    if(backspaceDelay){clearTimeout(backspaceDelay);backspaceDelay=null;}
+    if(backspaceTimer){clearInterval(backspaceTimer);backspaceTimer=null;}
+  }
+
+  function showLayer(name){
+    currentLayer=name;
+    document.getElementById("letters").classList.toggle("hidden-layer",name!=="letters");
+    document.getElementById("symbols").classList.toggle("on",name==="symbols");
+    document.getElementById("emojis").classList.toggle("on",name==="emojis");
+    if(name==="emojis") renderEmojiUI();
+  }
+
+  var currentLayer="letters";
+  var emojiReady=false, emojiGroups={};
+  var emojiIcons={
+    "Smileys & Emotion":"😀","People & Body":"🧑","Animals & Nature":"🐶",
+    "Food & Drink":"🍕","Travel & Places":"🚗","Activities":"⚽",
+    "Objects":"💡","Symbols":"🔣","Flags":"🇮🇳"
+  };
+
+  function renderEmojiUI(){
+    if(emojiReady) return;
+    var cats=document.getElementById("emoji-cats");
+    var grid=document.getElementById("emoji-grid");
+    if(!window.EMOJI_GROUPS){
+      grid.innerHTML='<div class="info" style="padding:10px">Emoji data loading…</div>';
+      setTimeout(renderEmojiUI,150);
+      return;
+    }
+    emojiGroups=window.EMOJI_GROUPS;
+    cats.innerHTML="";
+    Object.keys(emojiGroups).forEach(function(group,idx){
+      var b=document.createElement("button");
+      b.className="emoji-cat"+(idx===0?" on":"");
+      b.textContent=emojiIcons[group]||"😀";
+      b.title=group;
+      b.addEventListener("pointerdown",function(e){
+        e.preventDefault();
+        document.querySelectorAll(".emoji-cat").forEach(function(x){x.classList.remove("on");});
+        b.classList.add("on");
+        renderEmojiGroup(group);
+      });
+      cats.appendChild(b);
+    });
+    emojiReady=true;
+    renderEmojiGroup(Object.keys(emojiGroups)[0]);
+  }
+
+  function renderEmojiGroup(group){
+    var grid=document.getElementById("emoji-grid");
+    grid.innerHTML="";
+    (emojiGroups[group]||[]).forEach(function(item){
+      var b=document.createElement("button");
+      b.className="emoji-key";
+      b.textContent=item.emoji;
+      b.title=item.name||"";
+      b.setAttribute("data-emoji",item.emoji);
+      b.addEventListener("pointerdown",function(e){
+        e.preventDefault();
+        send({type:"text",text:item.emoji});
+      });
+      grid.appendChild(b);
+    });
+  }
+
+  document.getElementById("emoji-back").addEventListener("pointerdown",function(e){
+    e.preventDefault();
+    showLayer("letters");
+  });
+
+  window.handleAndroidBack = function(){
+    var panel=document.getElementById("settings");
+    if(panel.classList.contains("open")){
+      panel.classList.remove("open");
+      return true;
+    }
+    if(currentLayer !== "letters"){
+      showLayer("letters");
+      return true;
+    }
+    return false;
+  };
+
+  function handleKeyTap(k){
+    var key=k.getAttribute("data-key");
+    if(key==="SYM_TOGGLE"){showLayer("symbols");return;}
+    if(key==="EMOJI_TOGGLE"){showLayer("emojis");return;}
+    if(key==="ABC_TOGGLE"){showLayer("letters");return;}
+    if(key==="Shift"){shiftOn=!shiftOn;send({type:shiftOn?"key_down":"key_up",key:"Shift"});refreshShiftLabels();return;}
+    if(key==="Backspace")return;
+    send({type:"key",key:key});
+  }
+
+  document.getElementById("keyboard-pane").addEventListener("pointerdown",function(e){
+    var k=e.target.closest(".key");if(!k)return;
+    e.preventDefault();
+    if(k.getAttribute("data-key")==="Backspace"){startBackspace();return;}
+    handleKeyTap(k);
+  });
+  document.getElementById("keyboard-pane").addEventListener("pointerup",function(e){
+    var k=e.target.closest(".key");if(k&&k.getAttribute("data-key")==="Backspace")stopBackspace();
+  });
+  document.getElementById("keyboard-pane").addEventListener("pointercancel",function(e){
+    var k=e.target.closest(".key");if(k&&k.getAttribute("data-key")==="Backspace")stopBackspace();
+  });
+  document.getElementById("keyboard-pane").addEventListener("pointerleave",function(){});
+  showLayer("letters");
+  refreshShiftLabels();
+})();
+</script>
+</body>
+</html>
